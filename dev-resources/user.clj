@@ -47,5 +47,6 @@
   (alter-var-root #'system component/stop-system)
   :stopped)
 
+(start)
 (comment
   (start))
