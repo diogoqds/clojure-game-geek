@@ -4,6 +4,7 @@
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :dependencies [[org.clojure/clojure "1.10.3"]
                  [com.walmartlabs/lacinia-pedestal "1.0"]
+                 [com.stuartsierra/component "1.0.0"]
                  [io.aviso/logging "1.0"]]
   :profiles {:dev {:resource-paths ["dev-resources"]}}
   :repl-options {:init-ns clojure-game-geek.core})
