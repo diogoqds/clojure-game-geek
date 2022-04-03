@@ -1,30 +1,9 @@
 (ns user
-  (:require [clojure-game-geek.schema :as s]
-            [com.walmartlabs.lacinia :as lacinia]
-            [com.walmartlabs.lacinia.pedestal :as lp]
+  (:require [com.walmartlabs.lacinia :as lacinia]
             [clojure-game-geek.system :as system]
             [com.stuartsierra.component :as component]
-            [io.pedestal.http :as http]
             [clojure.java.browse :refer [browse-url]]
-            [clojure.walk :as walk])
-  (:import (clojure.lang IPersistentMap)))
-
-(defonce system (system/new-system))
-
-(defn simplify
-  [m]
-  (walk/postwalk
-    (fn [node]
-      (cond
-        (instance? IPersistentMap node)
-        (into {} node)
-
-        (seq? node)
-        (vec node)
-
-        :else
-        node))
-    m))
+            [clojure-game-geek.test-utils :refer [simplify]]))
 
 (defonce system nil)
 
@@ -53,6 +32,5 @@
     (alter-var-root #'system (constantly nil)))
   :stopped)
 
-(start)
 (comment
   (start))
