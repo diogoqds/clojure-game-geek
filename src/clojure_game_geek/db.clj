@@ -1,6 +1,8 @@
 (ns clojure-game-geek.db
   (:require [clojure.java.jdbc :as jdbc]
-            [com.stuartsierra.component :as component])
+            [io.pedestal.log :as log]
+            [com.stuartsierra.component :as component]
+            [clojure.string :as str])
   (:import (com.mchange.v2.c3p0 ComboPooledDataSource)))
 
 (defn ^:private pooled-data-source
@@ -26,54 +28,59 @@
   []
   {:db (map->ClojureGameGeekDb {})})
 
+(defn ^:private query
+  [component statement]
+  (let [[sql & params] statement]
+    (log/debug :sql (str/replace sql #"\s+" "")
+               :params params))
+  (jdbc/query (:ds component) statement))
+
+
 (defn find-game-by-id
   [component game-id]
   (first
-    (jdbc/query (:ds component)
-                ["select game_id, name, summary, min_players, max_players, created_at, updated_at
-                from board_Game where game_id = ?" game-id])))
+    (query component
+           ["select game_id, name, summary, min_players, max_players, created_at, updated_at
+            from board_Game where game_id = ?" game-id])))
 
 (defn find-member-by-id
-  [db member-id]
-  (->> db
-       :data
-       deref
-       :members
-       (filter #(= member-id (:id %)))
-       first))
+  [component member-id]
+  (first
+    (query component
+           ["select member_id, name, created_At, updated_at
+           from member where member_id = $1" member-id])))
 
 (defn list-designers-for-game
-  [db game-id]
-  (let [designers (:designers (find-game-by-id db game-id))]
-    (->> db
-         :data
-         deref
-         :designers
-         (filter #(contains? designers (:id %))))))
+  [component game-id]
+  (query component
+         ["select d.designer_id, d.name, d.uri, d.created_at, d.updated_at
+         from designer d
+         inner join designer_to_game j on (d.designer_id = j.designer_id)
+         where j.game_id = $1
+         order by d.name" game-id]))
 
 (defn list-games-for-designer
-  [db designer-id]
-  (->> db
-       :data
-       deref
-       :games
-       (filter #(-> % :designers (contains? designer-id)))))
+  [component designer-id]
+  (query component
+         ["select g.game_id, g.name, g.summary, g.min_players, g.max_players, g.created_at, g.updated_at
+         from board_game g
+         inner join designer_to_game j on (g.game_id = j.game_id)
+         where j.designer_id = $1
+         order by g.name" designer-id]))
 
 (defn list-ratings-for-game
-  [db game-id]
-  (->> db
-       :data
-       deref
-       :ratings
-       (filter #(= game-id (:game_id %)))))
+  [component game-id]
+  (query component
+         ["select game_id, member_id, rating, created_at, updated_at
+         from game_rating
+         where game_id = $1" game-id]))
 
 (defn list-ratings-for-member
-  [db member-id]
-  (->> db
-       :data
-       deref
-       :ratings
-       (filter #(= member-id (:member_id %)))))
+  [component member-id]
+  (query component
+         ["select game_id, member_id, rating, created_at, updated_at
+         from game_rating
+         where member_id = $1" member-id]))
 
 (defn ^:private apply-game-rating
   [game-ratings game-id member-id rating]
@@ -85,8 +92,12 @@
               :rating    rating})))
 
 (defn upsert-game-rating
-  "Add a new game rating, or changes the value of an existing game rating."
-  [db game-id member-id rating]
-  (-> db
-      :data
-      (swap! update :ratings apply-game-rating game-id member-id rating)))
+  "Add a new game rating, or changes the value of an existing game rating.
+  Returns nil"
+  [component game-id member-id rating]
+  (query component
+         ["insert into game_rating (game_id, member_id, rating)
+         values ($1, $2, $3)
+         on conflict (game_id, member_id) do update set rating = $3"
+          game-id member-id rating])
+  nil)
